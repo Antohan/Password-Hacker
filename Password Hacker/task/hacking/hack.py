@@ -2,15 +2,18 @@ import sys
 import socket
 import itertools
 
+passwords_list = []
+
+with open('hacking/passwords.txt', 'r', encoding='utf-8') as f:
+    for line in f:
+        passwords_list.append(line.strip())
+
 address = (sys.argv[1], int(sys.argv[2]))
 
 
 def generate_password():
-    index = 1
-    while True:
-        symbols = 'abcdefghijklmnopqrstuvwxyz0123456789'
-        yield from itertools.product(symbols, repeat=index)
-        index += 1
+    for password in passwords_list:
+        yield from itertools.product(*zip(password.lower(), password.upper()))
 
 
 with socket.socket() as sock:
